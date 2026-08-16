@@ -106,24 +106,28 @@ window.storage = {
     for (let i = 0; i < Math.min(100, digits.length); i++) out[i] = parseInt(digits[i], 10);
     return out;
   }
+  const UNKNOWN = 9;
   function grade(answers, key) {
-    const marks = answers.map((a, i) => key[i] === 0 ? null : a === 0 ? false : a === key[i]);
+    const marks = answers.map((a, i) => key[i] === 0 ? null : a === 0 || a === UNKNOWN ? false : a === key[i]);
     const correct = marks.filter((m) => m === true).length;
+    const unknownCount = answers.filter((a) => a === UNKNOWN).length;
     const bySection = SECTIONS.map((s) => {
-      let c = 0, n = 0;
+      let c = 0, n = 0, u = 0;
       for (let q = s.start; q <= s.end; q++) {
         n++;
         if (marks[q - 1] === true) c++;
+        if (answers[q - 1] === UNKNOWN) u++;
       }
-      return { ...s, correct: c, total: n, rate: n ? c / n : 0 };
+      return { ...s, correct: c, total: n, unknown: u, rate: n ? c / n : 0 };
     });
     const bySubject = SUBJECTS.map((sub) => {
       const secs = bySection.filter((s) => s.subject === sub.no);
       const c = secs.reduce((a, b) => a + b.correct, 0);
-      return { ...sub, correct: c, rate: c / sub.total, fail: c < sub.cut };
+      const u = secs.reduce((a, b) => a + b.unknown, 0);
+      return { ...sub, correct: c, unknown: u, rate: c / sub.total, fail: c < sub.cut };
     });
     const passed = correct >= PASS_TOTAL && !bySubject.some((s) => s.fail);
-    return { marks, correct, bySection, bySubject, passed };
+    return { marks, correct, unknownCount, bySection, bySubject, passed };
   }
   function App() {
     var _a, _b;
@@ -252,6 +256,7 @@ window.storage = {
       return () => clearInterval(t);
     }, [running]);
     const answeredCount = draft.filter((v) => v > 0).length;
+    const unknownDraft = draft.filter((v) => v === UNKNOWN).length;
     const keyCount = key.filter((v) => v > 0).length;
     const round = attempts.length + 1;
     const pick = (qno, val) => {
@@ -283,10 +288,11 @@ window.storage = {
         answers: [...draft],
         marks: g.marks,
         correct: g.correct,
+        unknownCount: g.unknownCount,
         elapsed
       };
       setAttempts((prev) => [...prev, rec]);
-      setResult({ ...g, round, elapsed });
+      setResult({ ...g, round, elapsed, answers: [...draft] });
       setNotice("");
     };
     const resetDraft = () => {
@@ -317,16 +323,24 @@ window.storage = {
           var _a2;
           return (_a2 = a.marks) == null ? void 0 : _a2[i];
         });
-        const done = seq.filter((v) => v === true || v === false);
-        const wrong = done.filter((v) => v === false).length;
+        const unkSeq = attempts.map((a) => {
+          var _a2;
+          return ((_a2 = a.answers) == null ? void 0 : _a2[i]) === UNKNOWN;
+        });
+        const doneIdx = seq.map((v, j) => v === true || v === false ? j : -1).filter((j) => j >= 0);
+        const wrong = doneIdx.filter((j) => seq[j] === false).length;
+        const unknown = doneIdx.filter((j) => unkSeq[j]).length;
         let status = "none";
-        if (done.length > 0) {
-          if (wrong === done.length) status = "unsolved";
+        if (doneIdx.length > 0) {
+          const last = doneIdx[doneIdx.length - 1];
+          if (unknown === doneIdx.length) status = "unknown";
+          else if (unkSeq[last]) status = "unknown";
+          else if (wrong === doneIdx.length) status = "unsolved";
           else if (wrong === 0) status = "stable";
-          else if (done[done.length - 1] === false) status = "slip";
+          else if (seq[last] === false) status = "slip";
           else status = "shaky";
         }
-        return { qno: i + 1, seq, wrong, done: done.length, status, sec: sectionOf(i + 1) };
+        return { qno: i + 1, seq, unkSeq, wrong, unknown, done: doneIdx.length, status, sec: sectionOf(i + 1) };
       });
     }, [attempts]);
     const sectionStats = useMemo(() => {
@@ -403,7 +417,7 @@ window.storage = {
         examLabel: (_b = (_a = exams.find((e) => e.id === examId)) == null ? void 0 : _a.label) != null ? _b : "",
         onDelete: deleteAttempt
       }
-    ) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "bar" }, /* @__PURE__ */ React.createElement("div", { className: "bar-left" }, showKey ? /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, "\uC815\uB2F5 \uC785\uB825 ", keyCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, round, "\uD68C\uB3C5 \xB7 ", answeredCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")), /* @__PURE__ */ React.createElement("span", { className: "clock" }, fmtTime(elapsed)))), /* @__PURE__ */ React.createElement("div", { className: "bar-right" }, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => {
+    ) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "bar" }, /* @__PURE__ */ React.createElement("div", { className: "bar-left" }, showKey ? /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, "\uC815\uB2F5 \uC785\uB825 ", keyCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, round, "\uD68C\uB3C5 \xB7 ", answeredCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")), unknownDraft > 0 && /* @__PURE__ */ React.createElement("span", { className: "bar-unk" }, "\uBAA8\uB984 ", unknownDraft), /* @__PURE__ */ React.createElement("span", { className: "clock" }, fmtTime(elapsed)))), /* @__PURE__ */ React.createElement("div", { className: "bar-right" }, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => {
       setBulkTarget(showKey ? "key" : "draft");
       setBulkOpen(true);
     } }, "\uD55C\uBC88\uC5D0 \uC785\uB825"), showKey ? /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => setKey(emptyArr()) }, "\uC804\uCCB4 \uC9C0\uC6B0\uAE30") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: resetDraft }, "\uC0C8\uB85C \uD480\uAE30"), /* @__PURE__ */ React.createElement("button", { className: "btn solid", onClick: doGrade }, "\uCC44\uC810\uD558\uAE30")))), /* @__PURE__ */ React.createElement("div", { className: "progress" }, /* @__PURE__ */ React.createElement("i", { style: { width: `${showKey ? keyCount : answeredCount}%` } })), bulkOpen && /* @__PURE__ */ React.createElement("div", { className: "bulk" }, /* @__PURE__ */ React.createElement("p", { className: "bulk-help" }, "\uBC88\uD638\uB9CC \uC774\uC5B4\uC11C \uBD99\uC5EC\uB123\uC73C\uC138\uC694. ", /* @__PURE__ */ React.createElement("code", null, "3142\u2026"), " \uB610\uB294 ", /* @__PURE__ */ React.createElement("code", null, "1.\u2462 2.\u2460 3.\u2461"), " \uD615\uC2DD\uC744 \uBAA8\uB450 \uC77D\uC2B5\uB2C8\uB2E4."), /* @__PURE__ */ React.createElement(
@@ -420,20 +434,37 @@ window.storage = {
       return /* @__PURE__ */ React.createElement("section", { key: s.sid, className: "sec" }, /* @__PURE__ */ React.createElement("div", { className: "sec-hd" }, /* @__PURE__ */ React.createElement("div", { className: "sec-name" }, /* @__PURE__ */ React.createElement("b", null, s.name), /* @__PURE__ */ React.createElement("span", { className: "sec-meta" }, s.subject, "\uACFC\uBAA9 \xB7 ", s.start, "~", s.end, "\uBC88")), secRes && /* @__PURE__ */ React.createElement("span", { className: "sec-rate " + rateClass(secRes.rate) }, secRes.correct, "/", secRes.total)), /* @__PURE__ */ React.createElement("div", { className: "rows" }, Array.from({ length: s.end - s.start + 1 }, (_, k) => {
         const q = s.start + k;
         const mark = marksForGrid ? marksForGrid[q - 1] : null;
-        return /* @__PURE__ */ React.createElement("div", { key: q, className: "row" + (mark === false ? " row-bad" : mark === true ? " row-ok" : "") }, /* @__PURE__ */ React.createElement("span", { className: "qno" }, q), /* @__PURE__ */ React.createElement("div", { className: "opts" }, [1, 2, 3, 4].map((v) => {
-          const on = current[q - 1] === v;
-          const isKey = !showKey && result && key[q - 1] === v;
-          return /* @__PURE__ */ React.createElement(
+        const isUnknown = current[q - 1] === UNKNOWN;
+        return /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            key: q,
+            className: "row" + (mark === false && isUnknown ? " row-unk" : mark === false ? " row-bad" : mark === true ? " row-ok" : "")
+          },
+          /* @__PURE__ */ React.createElement("span", { className: "qno" }, q),
+          /* @__PURE__ */ React.createElement("div", { className: "opts" }, [1, 2, 3, 4].map((v) => {
+            const on = current[q - 1] === v;
+            const isKey = !showKey && result && key[q - 1] === v;
+            return /* @__PURE__ */ React.createElement(
+              "button",
+              {
+                key: v,
+                className: "opt" + (on ? " on" : "") + (on && mark === false ? " wrong" : "") + (on && mark === true ? " right" : "") + (!on && isKey && mark === false ? " answer" : ""),
+                onClick: () => pick(q, v),
+                "aria-label": `${q}\uBC88 ${v}\uBC88 \uC120\uD0DD`
+              },
+              v
+            );
+          }), !showKey && /* @__PURE__ */ React.createElement(
             "button",
             {
-              key: v,
-              className: "opt" + (on ? " on" : "") + (on && mark === false ? " wrong" : "") + (on && mark === true ? " right" : "") + (!on && isKey && mark === false ? " answer" : ""),
-              onClick: () => pick(q, v),
-              "aria-label": `${q}\uBC88 ${v}\uBC88 \uC120\uD0DD`
+              className: "opt unk" + (isUnknown ? " on" : ""),
+              onClick: () => pick(q, UNKNOWN),
+              "aria-label": `${q}\uBC88 \uBAA8\uB984\uC73C\uB85C \uD45C\uC2DC`
             },
-            v
-          );
-        })));
+            "\uBAA8\uB984"
+          ))
+        );
       })));
     }), /* @__PURE__ */ React.createElement("div", { className: "foot-space" }))));
   }
@@ -487,13 +518,17 @@ window.storage = {
     } }, "\uC774\uB984 \uC218\uC815"), /* @__PURE__ */ React.createElement("button", { className: "btn ghost xs", onClick: () => setConfirmId(x.id) }, "\uC0AD\uC81C"))))));
   }
   function ResultPanel({ result, onClose }) {
-    const { correct, bySubject, passed, round, elapsed } = result;
-    const wrongList = SECTIONS.map((s) => {
-      const qs = [];
-      for (let q = s.start; q <= s.end; q++) if (result.marks[q - 1] === false) qs.push(q);
-      return { name: s.name, qs };
-    }).filter((x) => x.qs.length);
-    return /* @__PURE__ */ React.createElement("div", { className: "res" }, /* @__PURE__ */ React.createElement("div", { className: "res-hd" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "res-round" }, round, "\uD68C\uB3C5 \uACB0\uACFC"), /* @__PURE__ */ React.createElement("span", { className: "res-time" }, fmtTime(elapsed), " \uC18C\uC694")), /* @__PURE__ */ React.createElement("button", { className: "btn ghost sm", onClick: onClose }, "\uB2EB\uAE30")), /* @__PURE__ */ React.createElement("div", { className: "res-score" }, /* @__PURE__ */ React.createElement("div", { className: "score-num" }, correct, /* @__PURE__ */ React.createElement("span", { className: "score-den" }, "/100")), /* @__PURE__ */ React.createElement("div", { className: "verdict " + (passed ? "pass" : "fail") }, passed ? "\uD569\uACA9\uC120 \uD1B5\uACFC" : correct < PASS_TOTAL ? `\uD569\uACA9\uC120\uAE4C\uC9C0 ${PASS_TOTAL - correct}\uBB38\uD56D` : "\uACFC\uB77D \uBC1C\uC0DD")), /* @__PURE__ */ React.createElement("div", { className: "subs" }, bySubject.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.no, className: "sub" + (s.fail ? " sub-fail" : "") }, /* @__PURE__ */ React.createElement("div", { className: "sub-top" }, /* @__PURE__ */ React.createElement("b", null, s.no, "\uACFC\uBAA9"), /* @__PURE__ */ React.createElement("span", null, s.correct, "/", s.total)), /* @__PURE__ */ React.createElement("div", { className: "sub-bar" }, /* @__PURE__ */ React.createElement("i", { style: { width: `${s.rate * 100}%` }, className: s.fail ? "bad" : "ok" }), /* @__PURE__ */ React.createElement("u", { style: { left: `${s.cut / s.total * 100}%` } })), /* @__PURE__ */ React.createElement("div", { className: "sub-note" }, s.fail ? `\uACFC\uB77D (${s.cut}\uBB38\uD56D \uBBF8\uB2EC)` : `\uACFC\uB77D \uAE30\uC900 ${s.cut}\uBB38\uD56D \uCDA9\uC871`)))), wrongList.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "wrongs" }, /* @__PURE__ */ React.createElement("div", { className: "wrongs-hd" }, "\uD2C0\uB9B0 \uBB38\uD56D"), wrongList.map((w) => /* @__PURE__ */ React.createElement("div", { key: w.name, className: "wrong-line" }, /* @__PURE__ */ React.createElement("span", { className: "wrong-sec" }, w.name), /* @__PURE__ */ React.createElement("span", { className: "wrong-qs" }, w.qs.join(", "))))));
+    const { correct, bySubject, passed, round, elapsed, unknownCount = 0, answers = [] } = result;
+    const lists = SECTIONS.map((s) => {
+      const wrong = [], unk = [];
+      for (let q = s.start; q <= s.end; q++) {
+        if (result.marks[q - 1] !== false) continue;
+        if (answers[q - 1] === UNKNOWN) unk.push(q);
+        else wrong.push(q);
+      }
+      return { name: s.name, wrong, unk };
+    }).filter((x) => x.wrong.length || x.unk.length);
+    return /* @__PURE__ */ React.createElement("div", { className: "res" }, /* @__PURE__ */ React.createElement("div", { className: "res-hd" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "res-round" }, round, "\uD68C\uB3C5 \uACB0\uACFC"), /* @__PURE__ */ React.createElement("span", { className: "res-time" }, fmtTime(elapsed), " \uC18C\uC694")), /* @__PURE__ */ React.createElement("button", { className: "btn ghost sm", onClick: onClose }, "\uB2EB\uAE30")), /* @__PURE__ */ React.createElement("div", { className: "res-score" }, /* @__PURE__ */ React.createElement("div", { className: "score-num" }, correct, /* @__PURE__ */ React.createElement("span", { className: "score-den" }, "/100")), /* @__PURE__ */ React.createElement("div", { className: "verdict " + (passed ? "pass" : "fail") }, passed ? "\uD569\uACA9\uC120 \uD1B5\uACFC" : correct < PASS_TOTAL ? `\uD569\uACA9\uC120\uAE4C\uC9C0 ${PASS_TOTAL - correct}\uBB38\uD56D` : "\uACFC\uB77D \uBC1C\uC0DD"), unknownCount > 0 && /* @__PURE__ */ React.createElement("div", { className: "verdict unk" }, "\uBAA8\uB984 ", unknownCount, "\uBB38\uD56D (\uC624\uB2F5 \uCC98\uB9AC)")), /* @__PURE__ */ React.createElement("div", { className: "subs" }, bySubject.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.no, className: "sub" + (s.fail ? " sub-fail" : "") }, /* @__PURE__ */ React.createElement("div", { className: "sub-top" }, /* @__PURE__ */ React.createElement("b", null, s.no, "\uACFC\uBAA9"), /* @__PURE__ */ React.createElement("span", null, s.correct, "/", s.total, s.unknown > 0 && /* @__PURE__ */ React.createElement("em", { className: "sub-unk" }, " \uBAA8\uB984 ", s.unknown))), /* @__PURE__ */ React.createElement("div", { className: "sub-bar" }, /* @__PURE__ */ React.createElement("i", { style: { width: `${s.rate * 100}%` }, className: s.fail ? "bad" : "ok" }), /* @__PURE__ */ React.createElement("u", { style: { left: `${s.cut / s.total * 100}%` } })), /* @__PURE__ */ React.createElement("div", { className: "sub-note" }, s.fail ? `\uACFC\uB77D (${s.cut}\uBB38\uD56D \uBBF8\uB2EC)` : `\uACFC\uB77D \uAE30\uC900 ${s.cut}\uBB38\uD56D \uCDA9\uC871`)))), lists.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "wrongs" }, /* @__PURE__ */ React.createElement("div", { className: "wrongs-hd" }, "\uD2C0\uB9B0 \uBB38\uD56D \xB7 \uBAA8\uB984 \uBB38\uD56D"), lists.map((w) => /* @__PURE__ */ React.createElement("div", { key: w.name, className: "wrong-line" }, /* @__PURE__ */ React.createElement("span", { className: "wrong-sec" }, w.name), /* @__PURE__ */ React.createElement("span", { className: "wrong-qs" }, w.wrong.length > 0 && /* @__PURE__ */ React.createElement("b", null, w.wrong.join(", ")), w.wrong.length > 0 && w.unk.length > 0 && " \xB7 ", w.unk.length > 0 && /* @__PURE__ */ React.createElement("i", { className: "qs-unk" }, "\uBAA8\uB984 ", w.unk.join(", ")))))));
   }
   function buildReport({ examLabel, attempts, history, sectionStats, answerKey }) {
     const L = [];
@@ -503,19 +538,20 @@ window.storage = {
     L.push(`\uCD1D \uD68C\uB3C5: ${attempts.length}\uD68C / \uB0B4\uBCF4\uB0B8 \uB0A0\uC9DC: ${(/* @__PURE__ */ new Date()).toLocaleDateString("ko-KR")}`);
     L.push("");
     L.push(`## 1. \uD68C\uB3C5\uBCC4 \uC131\uC801`);
-    L.push(`\uD68C\uB3C5 | \uB0A0\uC9DC | \uC810\uC218 | \uC18C\uC694\uC2DC\uAC04 | 1\uACFC\uBAA9 | 2\uACFC\uBAA9 | 3\uACFC\uBAA9 | \uACFC\uB77D`);
+    L.push(`\uD68C\uB3C5 | \uB0A0\uC9DC | \uC810\uC218 | \uBAA8\uB984 | \uC18C\uC694\uC2DC\uAC04 | 1\uACFC\uBAA9 | 2\uACFC\uBAA9 | 3\uACFC\uBAA9 | \uACFC\uB77D`);
     attempts.forEach((a) => {
-      const g = { bySubject: SUBJECTS.map((sub) => {
+      const bySubject = SUBJECTS.map((sub) => {
         let c = 0;
         SECTIONS.filter((s) => s.subject === sub.no).forEach((s) => {
           var _a;
           for (let q = s.start; q <= s.end; q++) if (((_a = a.marks) == null ? void 0 : _a[q - 1]) === true) c++;
         });
         return { ...sub, correct: c, fail: c < sub.cut };
-      }) };
-      const fails = g.bySubject.filter((s) => s.fail).map((s) => `${s.no}\uACFC\uBAA9`);
+      });
+      const fails = bySubject.filter((s) => s.fail).map((s) => `${s.no}\uACFC\uBAA9`);
+      const unk = (a.answers || []).filter((v) => v === UNKNOWN).length;
       L.push(
-        `${a.round}\uD68C\uB3C5 | ${new Date(a.date).toLocaleDateString("ko-KR")} | ${a.correct}/100 | ${fmtTime(a.elapsed || 0)} | ` + g.bySubject.map((s) => `${s.correct}/${s.total}`).join(" | ") + ` | ${fails.length ? fails.join(",") : "\uC5C6\uC74C"}`
+        `${a.round}\uD68C\uB3C5 | ${new Date(a.date).toLocaleDateString("ko-KR")} | ${a.correct}/100 | ${unk}\uBB38\uD56D | ${fmtTime(a.elapsed || 0)} | ` + bySubject.map((s) => `${s.correct}/${s.total}`).join(" | ") + ` | ${fails.length ? fails.join(",") : "\uC5C6\uC74C"}`
       );
     });
     L.push("");
@@ -527,30 +563,34 @@ window.storage = {
       L.push(`${s.subject}\uACFC\uBAA9 | ${s.name} (${s.start}~${s.end}\uBC88, ${s.end - s.start + 1}\uBB38\uD56D) | ${s.correct}/${s.n} | ${pct(s.rate)}`);
     });
     L.push("");
-    L.push(`## 3. \uBC18\uBCF5 \uC624\uB2F5 \uBB38\uD56D (\uC624\uB2F5 \uD69F\uC218 \uC21C)`);
-    L.push(`\uBB38\uD56D | \uC138\uBD80\uACFC\uBAA9 | \uD68C\uB3C5\uAE30\uB85D | \uC624\uB2F5\uD69F\uC218 | \uC0C1\uD0DC | \uD68C\uB3C5\uBCC4 \uB0B4\uAC00\uACE0\uB978\uB2F5 | \uC815\uB2F5`);
+    L.push(`## 3. \uBC18\uBCF5 \uC624\uB2F5\xB7\uBAA8\uB984 \uBB38\uD56D (\uC624\uB2F5 \uD69F\uC218 \uC21C)`);
+    L.push(`\uBB38\uD56D | \uC138\uBD80\uACFC\uBAA9 | \uD68C\uB3C5\uAE30\uB85D(O\uC815\uB2F5/X\uC624\uB2F5/U\uBAA8\uB984) | \uC624\uB2F5\uD69F\uC218 | \uBAA8\uB984\uD69F\uC218 | \uC0C1\uD0DC | \uD68C\uB3C5\uBCC4 \uB0B4\uAC00\uACE0\uB978\uB2F5 | \uC815\uB2F5`);
     history.filter((h) => h.wrong > 0).sort((a, b) => b.wrong - a.wrong || a.qno - b.qno).forEach((h) => {
-      const seq = h.seq.map((v) => v === true ? "O" : v === false ? "X" : "-").join("");
+      const seq = h.seq.map((v, i) => {
+        var _a;
+        return ((_a = h.unkSeq) == null ? void 0 : _a[i]) && v === false ? "U" : v === true ? "O" : v === false ? "X" : "-";
+      }).join("");
       const picks = attempts.map((a) => {
         var _a;
-        return ((_a = a.answers) == null ? void 0 : _a[h.qno - 1]) || "-";
+        const v = (_a = a.answers) == null ? void 0 : _a[h.qno - 1];
+        return v === UNKNOWN ? "\uBAA8\uB984" : v || "-";
       }).join(",");
       L.push(
-        `${h.qno}\uBC88 | ${h.sec.name} | ${seq} | ${h.wrong}\uD68C | ${STATUS_META[h.status].label} | ${picks} | ${(answerKey == null ? void 0 : answerKey[h.qno - 1]) || "-"}`
+        `${h.qno}\uBC88 | ${h.sec.name} | ${seq} | ${h.wrong}\uD68C | ${h.unknown}\uD68C | ${STATUS_META[h.status].label} | ${picks} | ${(answerKey == null ? void 0 : answerKey[h.qno - 1]) || "-"}`
       );
     });
     L.push("");
     L.push(`## 4. \uC0C1\uD0DC \uBD84\uB958 \uC694\uC57D`);
-    ["unsolved", "slip", "shaky", "stable"].forEach((k) => {
+    ["unknown", "unsolved", "slip", "shaky", "stable"].forEach((k) => {
       const qs = history.filter((h) => h.status === k).map((h) => h.qno);
       L.push(`${STATUS_META[k].label} (${qs.length}\uBB38\uD56D): ${qs.length ? qs.join(", ") : "\uC5C6\uC74C"}`);
     });
     L.push("");
-    L.push(`\u203B \uC0C1\uD0DC \uC815\uC758 \u2014 \uC644\uC804 \uBBF8\uD574\uACB0: \uC804 \uD68C\uB3C5 \uC624\uB2F5 / \uBC29\uC2EC \uC624\uB2F5: \uB9DE\uB2E4\uAC00 \uCD5C\uADFC \uD68C\uB3C5 \uC624\uB2F5 / \uBD88\uC548\uC815: \uC815\uC624 \uBC18\uBCF5 / \uC548\uC815: \uC804 \uD68C\uB3C5 \uC815\uB2F5`);
+    L.push(`\u203B \uC0C1\uD0DC \uC815\uC758 \u2014 \uBAA8\uB984: \uCC0D\uC9C0 \uC54A\uACE0 \uBAA8\uB984 \uD45C\uC2DC(\uC810\uC218\uB294 \uC624\uB2F5 \uCC98\uB9AC) / \uC644\uC804 \uBBF8\uD574\uACB0: \uC804 \uD68C\uB3C5 \uC624\uB2F5 / \uBC29\uC2EC \uC624\uB2F5: \uB9DE\uB2E4\uAC00 \uCD5C\uADFC \uD68C\uB3C5 \uC624\uB2F5 / \uBD88\uC548\uC815: \uC815\uC624 \uBC18\uBCF5 / \uC548\uC815: \uC804 \uD68C\uB3C5 \uC815\uB2F5`);
     return L.join("\n");
   }
   function buildCSV({ attempts, history, answerKey }) {
-    const head = ["\uBB38\uD56D", "\uACFC\uBAA9", "\uC138\uBD80\uACFC\uBAA9", "\uC815\uB2F5", "\uC624\uB2F5\uD69F\uC218", "\uC0C1\uD0DC"];
+    const head = ["\uBB38\uD56D", "\uACFC\uBAA9", "\uC138\uBD80\uACFC\uBAA9", "\uC815\uB2F5", "\uC624\uB2F5\uD69F\uC218", "\uBAA8\uB984\uD69F\uC218", "\uC0C1\uD0DC"];
     attempts.forEach((a) => head.push(`${a.round}\uD68C\uB3C5_\uC120\uD0DD`, `${a.round}\uD68C\uB3C5_\uC815\uC624`));
     const rows = [head.join(",")];
     history.forEach((h) => {
@@ -560,12 +600,16 @@ window.storage = {
         `"${h.sec.name}"`,
         (answerKey == null ? void 0 : answerKey[h.qno - 1]) || "",
         h.wrong,
+        h.unknown,
         STATUS_META[h.status].label
       ];
-      attempts.forEach((a) => {
-        var _a, _b, _c;
-        r.push(((_a = a.answers) == null ? void 0 : _a[h.qno - 1]) || "");
-        r.push(((_b = a.marks) == null ? void 0 : _b[h.qno - 1]) === true ? "O" : ((_c = a.marks) == null ? void 0 : _c[h.qno - 1]) === false ? "X" : "");
+      attempts.forEach((a, i) => {
+        var _a, _b, _c, _d, _e;
+        const v = (_a = a.answers) == null ? void 0 : _a[h.qno - 1];
+        r.push(v === UNKNOWN ? "\uBAA8\uB984" : v || "");
+        r.push(
+          ((_b = h.unkSeq) == null ? void 0 : _b[i]) && ((_c = a.marks) == null ? void 0 : _c[h.qno - 1]) === false ? "U" : ((_d = a.marks) == null ? void 0 : _d[h.qno - 1]) === true ? "O" : ((_e = a.marks) == null ? void 0 : _e[h.qno - 1]) === false ? "X" : ""
+        );
       });
       rows.push(r.join(","));
     });
@@ -614,6 +658,7 @@ window.storage = {
     return /* @__PURE__ */ React.createElement("div", { className: "exp" }, /* @__PURE__ */ React.createElement("div", { className: "exp-btns" }, /* @__PURE__ */ React.createElement("button", { className: mode === "report" ? "btn solid" : "btn ghost", onClick: () => show("report") }, "\uBD84\uC11D\uC6A9 \uC694\uC57D \uB9CC\uB4E4\uAE30"), /* @__PURE__ */ React.createElement("button", { className: mode === "csv" ? "btn solid" : "btn ghost", onClick: () => show("csv") }, "\uBB38\uD56D\uD45C CSV \uB9CC\uB4E4\uAE30")), mode && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "exp-act" }, /* @__PURE__ */ React.createElement("button", { className: "btn ghost sm", onClick: copy }, "\uBCF5\uC0AC"), /* @__PURE__ */ React.createElement("button", { className: "btn ghost sm", onClick: download }, "\uD30C\uC77C\uB85C \uC800\uC7A5"), copied && /* @__PURE__ */ React.createElement("span", { className: "exp-msg" }, copied)), /* @__PURE__ */ React.createElement("textarea", { ref: areaRef, className: "exp-area", readOnly: true, value: text, rows: 10 })));
   }
   const STATUS_META = {
+    unknown: { label: "\uBAA8\uB984", cls: "st-unknown", desc: "\uCC0D\uC9C0 \uC54A\uACE0 \uBAA8\uB984\uC73C\uB85C \uD45C\uC2DC\uD55C \uBB38\uD56D" },
     unsolved: { label: "\uC644\uC804 \uBBF8\uD574\uACB0", cls: "st-unsolved", desc: "\uD68C\uB3C5 \uB0B4\uB0B4 \uACC4\uC18D \uD2C0\uB9B0 \uBB38\uD56D" },
     slip: { label: "\uBC29\uC2EC \uC624\uB2F5", cls: "st-slip", desc: "\uB9DE\uB2E4\uAC00 \uCD5C\uADFC \uD68C\uB3C5\uC5D0\uC11C \uD2C0\uB9B0 \uBB38\uD56D" },
     shaky: { label: "\uBD88\uC548\uC815", cls: "st-shaky", desc: "\uB9DE\uC558\uB2E4 \uD2C0\uB838\uB2E4 \uBC18\uBCF5\uD558\uB294 \uBB38\uD56D" },
@@ -621,6 +666,7 @@ window.storage = {
     none: { label: "\uBBF8\uC751\uC2DC", cls: "st-none", desc: "" }
   };
   function StatsView({ attempts, history, sectionStats, answerKey, examLabel, onDelete }) {
+    var _a;
     const [focus, setFocus] = useState("all");
     if (attempts.length === 0) {
       return /* @__PURE__ */ React.createElement("div", { className: "empty" }, "\uC544\uC9C1 \uCC44\uC810 \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.", /* @__PURE__ */ React.createElement("br", null), "\uC815\uB2F5\uC744 \uB4F1\uB85D\uD558\uACE0 \uD55C \uD68C\uB3C5\uC744 \uCC44\uC810\uD558\uBA74 \uC5EC\uAE30\uC5D0 \uD1B5\uACC4\uAC00 \uC313\uC785\uB2C8\uB2E4.");
@@ -629,19 +675,20 @@ window.storage = {
     const last3 = attempts.slice(-3);
     const avg3 = last3.reduce((a, b) => a + b.correct, 0) / last3.length;
     const best = Math.max(...attempts.map((a) => a.correct));
+    const lastUnknown = (((_a = attempts[attempts.length - 1]) == null ? void 0 : _a.answers) || []).filter((v) => v === UNKNOWN).length;
     const counts = Object.keys(STATUS_META).reduce((acc, k) => {
       acc[k] = history.filter((h) => h.status === k).length;
       return acc;
     }, {});
     const filtered = focus === "all" ? history : history.filter((h) => h.status === focus);
     const maxScore = 100;
-    return /* @__PURE__ */ React.createElement("div", { className: "stats" }, /* @__PURE__ */ React.createElement("div", { className: "cards" }, /* @__PURE__ */ React.createElement(Card, { k: "\uC804\uCCB4 \uD3C9\uADE0", v: avg.toFixed(1), s: "\uBB38\uD56D" }), /* @__PURE__ */ React.createElement(Card, { k: "\uCD5C\uADFC 3\uD68C\uB3C5", v: avg3.toFixed(1), s: "\uBB38\uD56D" }), /* @__PURE__ */ React.createElement(Card, { k: "\uCD5C\uACE0 \uC810\uC218", v: best, s: "\uBB38\uD56D" }), /* @__PURE__ */ React.createElement(Card, { k: "\uB204\uC801 \uD68C\uB3C5", v: attempts.length, s: "\uD68C" })), /* @__PURE__ */ React.createElement(Block, { title: "\uD68C\uB3C5\uBCC4 \uC810\uC218 \uCD94\uC774", note: "\uAC00\uB85C\uC120\uC740 \uD569\uACA9\uC120 70\uBB38\uD56D\uC785\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement("div", { className: "chart" }, /* @__PURE__ */ React.createElement("div", { className: "chart-line", style: { bottom: `${PASS_TOTAL / maxScore * 100}%` } }, /* @__PURE__ */ React.createElement("span", null, "70")), /* @__PURE__ */ React.createElement("div", { className: "bars" }, attempts.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.round, className: "barwrap" }, /* @__PURE__ */ React.createElement("div", { className: "barv " + (a.correct >= PASS_TOTAL ? "ok" : "bad"), style: { height: `${a.correct / maxScore * 100}%` } }, /* @__PURE__ */ React.createElement("span", { className: "barv-num" }, a.correct)), /* @__PURE__ */ React.createElement("span", { className: "barv-lbl" }, a.round, "\uD68C")))))), /* @__PURE__ */ React.createElement(Block, { title: "\uC138\uBD80\uACFC\uBAA9\uBCC4 \uB204\uC801 \uC815\uB2F5\uB960", note: "\uC804 \uD68C\uB3C5\uC744 \uD569\uC0B0\uD55C \uC815\uB2F5\uB960\uC785\uB2C8\uB2E4. \uB0AE\uC740 \uC21C\uC73C\uB85C \uBCF5\uC2B5\uD558\uC2ED\uC2DC\uC624." }, /* @__PURE__ */ React.createElement("div", { className: "secstats" }, [...sectionStats].sort((a, b) => {
-      var _a, _b;
-      return ((_a = a.rate) != null ? _a : 1) - ((_b = b.rate) != null ? _b : 1);
+    return /* @__PURE__ */ React.createElement("div", { className: "stats" }, /* @__PURE__ */ React.createElement("div", { className: "cards" }, /* @__PURE__ */ React.createElement(Card, { k: "\uC804\uCCB4 \uD3C9\uADE0", v: avg.toFixed(1), s: "\uBB38\uD56D" }), /* @__PURE__ */ React.createElement(Card, { k: "\uCD5C\uADFC 3\uD68C\uB3C5", v: avg3.toFixed(1), s: "\uBB38\uD56D" }), /* @__PURE__ */ React.createElement(Card, { k: "\uCD5C\uACE0 \uC810\uC218", v: best, s: "\uBB38\uD56D" }), /* @__PURE__ */ React.createElement(Card, { k: "\uCD5C\uADFC \uD68C\uB3C5 \uBAA8\uB984", v: lastUnknown, s: "\uBB38\uD56D" })), /* @__PURE__ */ React.createElement(Block, { title: "\uD68C\uB3C5\uBCC4 \uC810\uC218 \uCD94\uC774", note: "\uAC00\uB85C\uC120\uC740 \uD569\uACA9\uC120 70\uBB38\uD56D\uC785\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement("div", { className: "chart" }, /* @__PURE__ */ React.createElement("div", { className: "chart-line", style: { bottom: `${PASS_TOTAL / maxScore * 100}%` } }, /* @__PURE__ */ React.createElement("span", null, "70")), /* @__PURE__ */ React.createElement("div", { className: "bars" }, attempts.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.round, className: "barwrap" }, /* @__PURE__ */ React.createElement("div", { className: "barv " + (a.correct >= PASS_TOTAL ? "ok" : "bad"), style: { height: `${a.correct / maxScore * 100}%` } }, /* @__PURE__ */ React.createElement("span", { className: "barv-num" }, a.correct)), /* @__PURE__ */ React.createElement("span", { className: "barv-lbl" }, a.round, "\uD68C")))))), /* @__PURE__ */ React.createElement(Block, { title: "\uC138\uBD80\uACFC\uBAA9\uBCC4 \uB204\uC801 \uC815\uB2F5\uB960", note: "\uC804 \uD68C\uB3C5\uC744 \uD569\uC0B0\uD55C \uC815\uB2F5\uB960\uC785\uB2C8\uB2E4. \uB0AE\uC740 \uC21C\uC73C\uB85C \uBCF5\uC2B5\uD558\uC2ED\uC2DC\uC624." }, /* @__PURE__ */ React.createElement("div", { className: "secstats" }, [...sectionStats].sort((a, b) => {
+      var _a2, _b;
+      return ((_a2 = a.rate) != null ? _a2 : 1) - ((_b = b.rate) != null ? _b : 1);
     }).map((s) => {
-      var _a, _b;
-      return /* @__PURE__ */ React.createElement("div", { key: s.sid, className: "secrow" }, /* @__PURE__ */ React.createElement("span", { className: "secrow-sub" }, s.subject), /* @__PURE__ */ React.createElement("span", { className: "secrow-name" }, s.name), /* @__PURE__ */ React.createElement("span", { className: "secrow-bar" }, /* @__PURE__ */ React.createElement("i", { className: rateClass((_a = s.rate) != null ? _a : 0), style: { width: `${((_b = s.rate) != null ? _b : 0) * 100}%` } })), /* @__PURE__ */ React.createElement("span", { className: "secrow-num" }, s.rate === null ? "-" : `${Math.round(s.rate * 100)}%`));
-    }))), /* @__PURE__ */ React.createElement(Block, { title: "\uBB38\uD56D\uBCC4 \uD68C\uB3C5 \uC774\uB825", note: "\uCE78\uC744 \uCC44\uC6B4 \uC0C9\uC740 \uC0C1\uD0DC\uC785\uB2C8\uB2E4. \uC0C1\uD0DC\uB97C \uB20C\uB7EC \uAC78\uB7EC \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement("div", { className: "legend" }, /* @__PURE__ */ React.createElement("button", { className: focus === "all" ? "lg on" : "lg", onClick: () => setFocus("all") }, "\uC804\uCCB4 100"), ["unsolved", "slip", "shaky", "stable"].map((k) => /* @__PURE__ */ React.createElement("button", { key: k, className: "lg " + STATUS_META[k].cls + (focus === k ? " on" : ""), onClick: () => setFocus(k) }, STATUS_META[k].label, " ", counts[k]))), /* @__PURE__ */ React.createElement("div", { className: "grid100" }, history.map((h) => /* @__PURE__ */ React.createElement(
+      var _a2, _b;
+      return /* @__PURE__ */ React.createElement("div", { key: s.sid, className: "secrow" }, /* @__PURE__ */ React.createElement("span", { className: "secrow-sub" }, s.subject), /* @__PURE__ */ React.createElement("span", { className: "secrow-name" }, s.name), /* @__PURE__ */ React.createElement("span", { className: "secrow-bar" }, /* @__PURE__ */ React.createElement("i", { className: rateClass((_a2 = s.rate) != null ? _a2 : 0), style: { width: `${((_b = s.rate) != null ? _b : 0) * 100}%` } })), /* @__PURE__ */ React.createElement("span", { className: "secrow-num" }, s.rate === null ? "-" : `${Math.round(s.rate * 100)}%`));
+    }))), /* @__PURE__ */ React.createElement(Block, { title: "\uBB38\uD56D\uBCC4 \uD68C\uB3C5 \uC774\uB825", note: "\uCE78\uC744 \uCC44\uC6B4 \uC0C9\uC740 \uC0C1\uD0DC\uC785\uB2C8\uB2E4. \uC0C1\uD0DC\uB97C \uB20C\uB7EC \uAC78\uB7EC \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement("div", { className: "legend" }, /* @__PURE__ */ React.createElement("button", { className: focus === "all" ? "lg on" : "lg", onClick: () => setFocus("all") }, "\uC804\uCCB4 100"), ["unknown", "unsolved", "slip", "shaky", "stable"].map((k) => /* @__PURE__ */ React.createElement("button", { key: k, className: "lg " + STATUS_META[k].cls + (focus === k ? " on" : ""), onClick: () => setFocus(k) }, STATUS_META[k].label, " ", counts[k]))), /* @__PURE__ */ React.createElement("div", { className: "grid100" }, history.map((h) => /* @__PURE__ */ React.createElement(
       "div",
       {
         key: h.qno,
@@ -649,7 +696,17 @@ window.storage = {
         title: `${h.qno}\uBC88 \xB7 ${h.sec.name} \xB7 ${STATUS_META[h.status].label}`
       },
       h.qno
-    )))), /* @__PURE__ */ React.createElement(Block, { title: focus === "all" ? "\uBC18\uBCF5 \uC624\uB2F5 \uC0C1\uC138" : `${STATUS_META[focus].label} \uC0C1\uC138`, note: "\uC624\uB2F5 \uD69F\uC218\uAC00 \uB9CE\uC740 \uC21C\uC785\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement("div", { className: "tbl" }, /* @__PURE__ */ React.createElement("div", { className: "tr th" }, /* @__PURE__ */ React.createElement("span", null, "\uBB38\uD56D"), /* @__PURE__ */ React.createElement("span", null, "\uC138\uBD80\uACFC\uBAA9"), /* @__PURE__ */ React.createElement("span", null, "\uD68C\uB3C5 \uAE30\uB85D"), /* @__PURE__ */ React.createElement("span", null, "\uC0C1\uD0DC")), filtered.filter((h) => h.status !== "none" && (focus !== "all" || h.wrong > 0)).sort((a, b) => b.wrong - a.wrong || a.qno - b.qno).slice(0, 60).map((h) => /* @__PURE__ */ React.createElement("div", { key: h.qno, className: "tr" }, /* @__PURE__ */ React.createElement("span", { className: "td-q" }, h.qno), /* @__PURE__ */ React.createElement("span", { className: "td-s" }, h.sec.name), /* @__PURE__ */ React.createElement("span", { className: "td-seq" }, h.seq.map((v, i) => /* @__PURE__ */ React.createElement("em", { key: i, className: v === true ? "sq ok" : v === false ? "sq bad" : "sq na" }, v === true ? "O" : v === false ? "X" : "-"))), /* @__PURE__ */ React.createElement("span", { className: "td-st " + STATUS_META[h.status].cls }, STATUS_META[h.status].label))))), /* @__PURE__ */ React.createElement(Block, { title: "\uC790\uB8CC \uB0B4\uBCF4\uB0B4\uAE30", note: "\uBCF5\uC0AC\uD574\uC11C \uD074\uB85C\uB4DC\uC5D0 \uBD99\uC5EC\uB123\uC73C\uBA74 \uC624\uB2F5 \uC6D0\uC778 \uBD84\uC11D\uC744 \uC774\uC5B4\uC11C \uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement(
+    )))), /* @__PURE__ */ React.createElement(Block, { title: focus === "all" ? "\uBC18\uBCF5 \uC624\uB2F5 \uC0C1\uC138" : `${STATUS_META[focus].label} \uC0C1\uC138`, note: "\uC624\uB2F5 \uD69F\uC218\uAC00 \uB9CE\uC740 \uC21C\uC785\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement("div", { className: "tbl" }, /* @__PURE__ */ React.createElement("div", { className: "tr th" }, /* @__PURE__ */ React.createElement("span", null, "\uBB38\uD56D"), /* @__PURE__ */ React.createElement("span", null, "\uC138\uBD80\uACFC\uBAA9"), /* @__PURE__ */ React.createElement("span", null, "\uD68C\uB3C5 \uAE30\uB85D"), /* @__PURE__ */ React.createElement("span", null, "\uC0C1\uD0DC")), filtered.filter((h) => h.status !== "none" && (focus !== "all" || h.wrong > 0)).sort((a, b) => b.wrong - a.wrong || a.qno - b.qno).slice(0, 60).map((h) => /* @__PURE__ */ React.createElement("div", { key: h.qno, className: "tr" }, /* @__PURE__ */ React.createElement("span", { className: "td-q" }, h.qno), /* @__PURE__ */ React.createElement("span", { className: "td-s" }, h.sec.name), /* @__PURE__ */ React.createElement("span", { className: "td-seq" }, h.seq.map((v, i) => {
+      var _a2, _b;
+      return /* @__PURE__ */ React.createElement(
+        "em",
+        {
+          key: i,
+          className: ((_a2 = h.unkSeq) == null ? void 0 : _a2[i]) && v === false ? "sq unk" : v === true ? "sq ok" : v === false ? "sq bad" : "sq na"
+        },
+        ((_b = h.unkSeq) == null ? void 0 : _b[i]) && v === false ? "U" : v === true ? "O" : v === false ? "X" : "-"
+      );
+    })), /* @__PURE__ */ React.createElement("span", { className: "td-st " + STATUS_META[h.status].cls }, STATUS_META[h.status].label))))), /* @__PURE__ */ React.createElement(Block, { title: "\uC790\uB8CC \uB0B4\uBCF4\uB0B4\uAE30", note: "\uBCF5\uC0AC\uD574\uC11C \uD074\uB85C\uB4DC\uC5D0 \uBD99\uC5EC\uB123\uC73C\uBA74 \uC624\uB2F5 \uC6D0\uC778 \uBD84\uC11D\uC744 \uC774\uC5B4\uC11C \uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4." }, /* @__PURE__ */ React.createElement(
       ExportPanel,
       {
         examLabel,
@@ -778,6 +835,17 @@ window.storage = {
 .row:last-child{border-bottom:0;}
 .row-bad{background:#FEF6F5;}
 .row-ok{background:#F4FAF8;}
+.row-unk{background:#F7F4FB;}
+.row-unk .qno{color:#6B4E9E;}
+.opt.unk{flex:0 0 52px;font-size:12px;color:#7B5EAF;border-style:dashed;}
+.opt.unk:hover{border-color:#7B5EAF;}
+.opt.unk.on{background:#7B5EAF;border-color:#7B5EAF;border-style:solid;color:#fff;}
+.bar-unk{font-size:12px;font-weight:700;color:#6B4E9E;background:#F0EAFA;padding:2px 8px;border-radius:20px;}
+.verdict.unk{background:#F0EAFA;color:#5B3F91;}
+.sub-unk{font-style:normal;color:#6B4E9E;font-size:11px;}
+.qs-unk{font-style:normal;color:#6B4E9E;font-weight:600;}
+.sq.unk{background:#EDE5F8;color:#5B3F91;}
+.st-unknown{background:#EDE5F8;color:#5B3F91;}
 .qno{flex:0 0 30px;font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;}
 .row-bad .qno{color:var(--bad);}
 .opts{display:flex;gap:6px;flex:1;}

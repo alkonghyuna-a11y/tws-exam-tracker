@@ -67,25 +67,30 @@ function parseBulk(raw) {
   return out;
 }
 
-/* 채점 */
+const UNKNOWN = 9;
+
+/* 채점 — 모름은 오답으로 계산하되, 통계에서는 따로 구분함 */
 function grade(answers, key) {
-  const marks = answers.map((a, i) => (key[i] === 0 ? null : a === 0 ? false : a === key[i]));
+  const marks = answers.map((a, i) => (key[i] === 0 ? null : a === 0 || a === UNKNOWN ? false : a === key[i]));
   const correct = marks.filter((m) => m === true).length;
+  const unknownCount = answers.filter((a) => a === UNKNOWN).length;
   const bySection = SECTIONS.map((s) => {
-    let c = 0, n = 0;
+    let c = 0, n = 0, u = 0;
     for (let q = s.start; q <= s.end; q++) {
       n++;
       if (marks[q - 1] === true) c++;
+      if (answers[q - 1] === UNKNOWN) u++;
     }
-    return { ...s, correct: c, total: n, rate: n ? c / n : 0 };
+    return { ...s, correct: c, total: n, unknown: u, rate: n ? c / n : 0 };
   });
   const bySubject = SUBJECTS.map((sub) => {
     const secs = bySection.filter((s) => s.subject === sub.no);
     const c = secs.reduce((a, b) => a + b.correct, 0);
-    return { ...sub, correct: c, rate: c / sub.total, fail: c < sub.cut };
+    const u = secs.reduce((a, b) => a + b.unknown, 0);
+    return { ...sub, correct: c, unknown: u, rate: c / sub.total, fail: c < sub.cut };
   });
   const passed = correct >= PASS_TOTAL && !bySubject.some((s) => s.fail);
-  return { marks, correct, bySection, bySubject, passed };
+  return { marks, correct, unknownCount, bySection, bySubject, passed };
 }
 
 /* ───────────────────────── 앱 ───────────────────────── */
@@ -224,6 +229,7 @@ export default function App() {
   }, [running]);
 
   const answeredCount = draft.filter((v) => v > 0).length;
+  const unknownDraft = draft.filter((v) => v === UNKNOWN).length;
   const keyCount = key.filter((v) => v > 0).length;
   const round = attempts.length + 1;
 
@@ -257,10 +263,11 @@ export default function App() {
       answers: [...draft],
       marks: g.marks,
       correct: g.correct,
+      unknownCount: g.unknownCount,
       elapsed,
     };
     setAttempts((prev) => [...prev, rec]);
-    setResult({ ...g, round, elapsed });
+    setResult({ ...g, round, elapsed, answers: [...draft] });
     setNotice("");
   };
 
@@ -293,16 +300,21 @@ export default function App() {
   const history = useMemo(() => {
     return Array.from({ length: 100 }, (_, i) => {
       const seq = attempts.map((a) => a.marks?.[i]);
-      const done = seq.filter((v) => v === true || v === false);
-      const wrong = done.filter((v) => v === false).length;
+      const unkSeq = attempts.map((a) => a.answers?.[i] === UNKNOWN);
+      const doneIdx = seq.map((v, j) => (v === true || v === false ? j : -1)).filter((j) => j >= 0);
+      const wrong = doneIdx.filter((j) => seq[j] === false).length;
+      const unknown = doneIdx.filter((j) => unkSeq[j]).length;
       let status = "none";
-      if (done.length > 0) {
-        if (wrong === done.length) status = "unsolved";
+      if (doneIdx.length > 0) {
+        const last = doneIdx[doneIdx.length - 1];
+        if (unknown === doneIdx.length) status = "unknown";
+        else if (unkSeq[last]) status = "unknown";
+        else if (wrong === doneIdx.length) status = "unsolved";
         else if (wrong === 0) status = "stable";
-        else if (done[done.length - 1] === false) status = "slip";
+        else if (seq[last] === false) status = "slip";
         else status = "shaky";
       }
-      return { qno: i + 1, seq, wrong, done: done.length, status, sec: sectionOf(i + 1) };
+      return { qno: i + 1, seq, unkSeq, wrong, unknown, done: doneIdx.length, status, sec: sectionOf(i + 1) };
     });
   }, [attempts]);
 
@@ -445,6 +457,7 @@ export default function App() {
               ) : (
                 <>
                   <span className="bar-label">{round}회독 · {answeredCount}<span className="dim">/100</span></span>
+                  {unknownDraft > 0 && <span className="bar-unk">모름 {unknownDraft}</span>}
                   <span className="clock">{fmtTime(elapsed)}</span>
                 </>
               )}
@@ -507,8 +520,15 @@ export default function App() {
                     {Array.from({ length: s.end - s.start + 1 }, (_, k) => {
                       const q = s.start + k;
                       const mark = marksForGrid ? marksForGrid[q - 1] : null;
+                      const isUnknown = current[q - 1] === UNKNOWN;
                       return (
-                        <div key={q} className={"row" + (mark === false ? " row-bad" : mark === true ? " row-ok" : "")}>
+                        <div
+                          key={q}
+                          className={
+                            "row" +
+                            (mark === false && isUnknown ? " row-unk" : mark === false ? " row-bad" : mark === true ? " row-ok" : "")
+                          }
+                        >
                           <span className="qno">{q}</span>
                           <div className="opts">
                             {[1, 2, 3, 4].map((v) => {
@@ -531,6 +551,15 @@ export default function App() {
                                 </button>
                               );
                             })}
+                            {!showKey && (
+                              <button
+                                className={"opt unk" + (isUnknown ? " on" : "")}
+                                onClick={() => pick(q, UNKNOWN)}
+                                aria-label={`${q}번 모름으로 표시`}
+                              >
+                                모름
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -631,12 +660,16 @@ function ExamManager({ exams, examId, onAdd, onRename, onRemove, onSelect, onClo
 /* ───────────────── 채점 결과 패널 ───────────────── */
 
 function ResultPanel({ result, onClose }) {
-  const { correct, bySubject, passed, round, elapsed } = result;
-  const wrongList = SECTIONS.map((s) => {
-    const qs = [];
-    for (let q = s.start; q <= s.end; q++) if (result.marks[q - 1] === false) qs.push(q);
-    return { name: s.name, qs };
-  }).filter((x) => x.qs.length);
+  const { correct, bySubject, passed, round, elapsed, unknownCount = 0, answers = [] } = result;
+  const lists = SECTIONS.map((s) => {
+    const wrong = [], unk = [];
+    for (let q = s.start; q <= s.end; q++) {
+      if (result.marks[q - 1] !== false) continue;
+      if (answers[q - 1] === UNKNOWN) unk.push(q);
+      else wrong.push(q);
+    }
+    return { name: s.name, wrong, unk };
+  }).filter((x) => x.wrong.length || x.unk.length);
 
   return (
     <div className="res">
@@ -655,6 +688,9 @@ function ResultPanel({ result, onClose }) {
         <div className={"verdict " + (passed ? "pass" : "fail")}>
           {passed ? "합격선 통과" : correct < PASS_TOTAL ? `합격선까지 ${PASS_TOTAL - correct}문항` : "과락 발생"}
         </div>
+        {unknownCount > 0 && (
+          <div className="verdict unk">모름 {unknownCount}문항 (오답 처리)</div>
+        )}
       </div>
 
       <div className="subs">
@@ -662,7 +698,7 @@ function ResultPanel({ result, onClose }) {
           <div key={s.no} className={"sub" + (s.fail ? " sub-fail" : "")}>
             <div className="sub-top">
               <b>{s.no}과목</b>
-              <span>{s.correct}/{s.total}</span>
+              <span>{s.correct}/{s.total}{s.unknown > 0 && <em className="sub-unk"> 모름 {s.unknown}</em>}</span>
             </div>
             <div className="sub-bar">
               <i style={{ width: `${s.rate * 100}%` }} className={s.fail ? "bad" : "ok"} />
@@ -673,13 +709,17 @@ function ResultPanel({ result, onClose }) {
         ))}
       </div>
 
-      {wrongList.length > 0 && (
+      {lists.length > 0 && (
         <div className="wrongs">
-          <div className="wrongs-hd">틀린 문항</div>
-          {wrongList.map((w) => (
+          <div className="wrongs-hd">틀린 문항 · 모름 문항</div>
+          {lists.map((w) => (
             <div key={w.name} className="wrong-line">
               <span className="wrong-sec">{w.name}</span>
-              <span className="wrong-qs">{w.qs.join(", ")}</span>
+              <span className="wrong-qs">
+                {w.wrong.length > 0 && <b>{w.wrong.join(", ")}</b>}
+                {w.wrong.length > 0 && w.unk.length > 0 && " · "}
+                {w.unk.length > 0 && <i className="qs-unk">모름 {w.unk.join(", ")}</i>}
+              </span>
             </div>
           ))}
         </div>
@@ -699,19 +739,20 @@ function buildReport({ examLabel, attempts, history, sectionStats, answerKey }) 
   L.push("");
 
   L.push(`## 1. 회독별 성적`);
-  L.push(`회독 | 날짜 | 점수 | 소요시간 | 1과목 | 2과목 | 3과목 | 과락`);
+  L.push(`회독 | 날짜 | 점수 | 모름 | 소요시간 | 1과목 | 2과목 | 3과목 | 과락`);
   attempts.forEach((a) => {
-    const g = { bySubject: SUBJECTS.map((sub) => {
+    const bySubject = SUBJECTS.map((sub) => {
       let c = 0;
       SECTIONS.filter((s) => s.subject === sub.no).forEach((s) => {
         for (let q = s.start; q <= s.end; q++) if (a.marks?.[q - 1] === true) c++;
       });
       return { ...sub, correct: c, fail: c < sub.cut };
-    }) };
-    const fails = g.bySubject.filter((s) => s.fail).map((s) => `${s.no}과목`);
+    });
+    const fails = bySubject.filter((s) => s.fail).map((s) => `${s.no}과목`);
+    const unk = (a.answers || []).filter((v) => v === UNKNOWN).length;
     L.push(
-      `${a.round}회독 | ${new Date(a.date).toLocaleDateString("ko-KR")} | ${a.correct}/100 | ${fmtTime(a.elapsed || 0)} | ` +
-      g.bySubject.map((s) => `${s.correct}/${s.total}`).join(" | ") +
+      `${a.round}회독 | ${new Date(a.date).toLocaleDateString("ko-KR")} | ${a.correct}/100 | ${unk}문항 | ${fmtTime(a.elapsed || 0)} | ` +
+      bySubject.map((s) => `${s.correct}/${s.total}`).join(" | ") +
       ` | ${fails.length ? fails.join(",") : "없음"}`
     );
   });
@@ -723,32 +764,39 @@ function buildReport({ examLabel, attempts, history, sectionStats, answerKey }) 
   });
   L.push("");
 
-  L.push(`## 3. 반복 오답 문항 (오답 횟수 순)`);
-  L.push(`문항 | 세부과목 | 회독기록 | 오답횟수 | 상태 | 회독별 내가고른답 | 정답`);
+  L.push(`## 3. 반복 오답·모름 문항 (오답 횟수 순)`);
+  L.push(`문항 | 세부과목 | 회독기록(O정답/X오답/U모름) | 오답횟수 | 모름횟수 | 상태 | 회독별 내가고른답 | 정답`);
   history
     .filter((h) => h.wrong > 0)
     .sort((a, b) => b.wrong - a.wrong || a.qno - b.qno)
     .forEach((h) => {
-      const seq = h.seq.map((v) => (v === true ? "O" : v === false ? "X" : "-")).join("");
-      const picks = attempts.map((a) => a.answers?.[h.qno - 1] || "-").join(",");
+      const seq = h.seq
+        .map((v, i) => (h.unkSeq?.[i] && v === false ? "U" : v === true ? "O" : v === false ? "X" : "-"))
+        .join("");
+      const picks = attempts
+        .map((a) => {
+          const v = a.answers?.[h.qno - 1];
+          return v === UNKNOWN ? "모름" : v || "-";
+        })
+        .join(",");
       L.push(
-        `${h.qno}번 | ${h.sec.name} | ${seq} | ${h.wrong}회 | ${STATUS_META[h.status].label} | ${picks} | ${answerKey?.[h.qno - 1] || "-"}`
+        `${h.qno}번 | ${h.sec.name} | ${seq} | ${h.wrong}회 | ${h.unknown}회 | ${STATUS_META[h.status].label} | ${picks} | ${answerKey?.[h.qno - 1] || "-"}`
       );
     });
   L.push("");
 
   L.push(`## 4. 상태 분류 요약`);
-  ["unsolved", "slip", "shaky", "stable"].forEach((k) => {
+  ["unknown", "unsolved", "slip", "shaky", "stable"].forEach((k) => {
     const qs = history.filter((h) => h.status === k).map((h) => h.qno);
     L.push(`${STATUS_META[k].label} (${qs.length}문항): ${qs.length ? qs.join(", ") : "없음"}`);
   });
   L.push("");
-  L.push(`※ 상태 정의 — 완전 미해결: 전 회독 오답 / 방심 오답: 맞다가 최근 회독 오답 / 불안정: 정오 반복 / 안정: 전 회독 정답`);
+  L.push(`※ 상태 정의 — 모름: 찍지 않고 모름 표시(점수는 오답 처리) / 완전 미해결: 전 회독 오답 / 방심 오답: 맞다가 최근 회독 오답 / 불안정: 정오 반복 / 안정: 전 회독 정답`);
   return L.join("\n");
 }
 
 function buildCSV({ attempts, history, answerKey }) {
-  const head = ["문항", "과목", "세부과목", "정답", "오답횟수", "상태"];
+  const head = ["문항", "과목", "세부과목", "정답", "오답횟수", "모름횟수", "상태"];
   attempts.forEach((a) => head.push(`${a.round}회독_선택`, `${a.round}회독_정오`));
   const rows = [head.join(",")];
   history.forEach((h) => {
@@ -758,11 +806,21 @@ function buildCSV({ attempts, history, answerKey }) {
       `"${h.sec.name}"`,
       answerKey?.[h.qno - 1] || "",
       h.wrong,
+      h.unknown,
       STATUS_META[h.status].label,
     ];
-    attempts.forEach((a) => {
-      r.push(a.answers?.[h.qno - 1] || "");
-      r.push(a.marks?.[h.qno - 1] === true ? "O" : a.marks?.[h.qno - 1] === false ? "X" : "");
+    attempts.forEach((a, i) => {
+      const v = a.answers?.[h.qno - 1];
+      r.push(v === UNKNOWN ? "모름" : v || "");
+      r.push(
+        h.unkSeq?.[i] && a.marks?.[h.qno - 1] === false
+          ? "U"
+          : a.marks?.[h.qno - 1] === true
+          ? "O"
+          : a.marks?.[h.qno - 1] === false
+          ? "X"
+          : ""
+      );
     });
     rows.push(r.join(","));
   });
@@ -843,6 +901,7 @@ function ExportPanel({ examLabel, attempts, history, sectionStats, answerKey }) 
 /* ───────────────── 통계 ───────────────── */
 
 const STATUS_META = {
+  unknown: { label: "모름", cls: "st-unknown", desc: "찍지 않고 모름으로 표시한 문항" },
   unsolved: { label: "완전 미해결", cls: "st-unsolved", desc: "회독 내내 계속 틀린 문항" },
   slip: { label: "방심 오답", cls: "st-slip", desc: "맞다가 최근 회독에서 틀린 문항" },
   shaky: { label: "불안정", cls: "st-shaky", desc: "맞았다 틀렸다 반복하는 문항" },
@@ -866,6 +925,7 @@ function StatsView({ attempts, history, sectionStats, answerKey, examLabel, onDe
   const last3 = attempts.slice(-3);
   const avg3 = last3.reduce((a, b) => a + b.correct, 0) / last3.length;
   const best = Math.max(...attempts.map((a) => a.correct));
+  const lastUnknown = (attempts[attempts.length - 1]?.answers || []).filter((v) => v === UNKNOWN).length;
   const counts = Object.keys(STATUS_META).reduce((acc, k) => {
     acc[k] = history.filter((h) => h.status === k).length;
     return acc;
@@ -880,7 +940,7 @@ function StatsView({ attempts, history, sectionStats, answerKey, examLabel, onDe
         <Card k="전체 평균" v={avg.toFixed(1)} s="문항" />
         <Card k="최근 3회독" v={avg3.toFixed(1)} s="문항" />
         <Card k="최고 점수" v={best} s="문항" />
-        <Card k="누적 회독" v={attempts.length} s="회" />
+        <Card k="최근 회독 모름" v={lastUnknown} s="문항" />
       </div>
 
       <Block title="회독별 점수 추이" note="가로선은 합격선 70문항입니다.">
@@ -917,7 +977,7 @@ function StatsView({ attempts, history, sectionStats, answerKey, examLabel, onDe
       <Block title="문항별 회독 이력" note="칸을 채운 색은 상태입니다. 상태를 눌러 걸러 볼 수 있습니다.">
         <div className="legend">
           <button className={focus === "all" ? "lg on" : "lg"} onClick={() => setFocus("all")}>전체 100</button>
-          {["unsolved", "slip", "shaky", "stable"].map((k) => (
+          {["unknown", "unsolved", "slip", "shaky", "stable"].map((k) => (
             <button key={k} className={"lg " + STATUS_META[k].cls + (focus === k ? " on" : "")} onClick={() => setFocus(k)}>
               {STATUS_META[k].label} {counts[k]}
             </button>
@@ -951,8 +1011,13 @@ function StatsView({ attempts, history, sectionStats, answerKey, examLabel, onDe
                 <span className="td-s">{h.sec.name}</span>
                 <span className="td-seq">
                   {h.seq.map((v, i) => (
-                    <em key={i} className={v === true ? "sq ok" : v === false ? "sq bad" : "sq na"}>
-                      {v === true ? "O" : v === false ? "X" : "-"}
+                    <em
+                      key={i}
+                      className={
+                        h.unkSeq?.[i] && v === false ? "sq unk" : v === true ? "sq ok" : v === false ? "sq bad" : "sq na"
+                      }
+                    >
+                      {h.unkSeq?.[i] && v === false ? "U" : v === true ? "O" : v === false ? "X" : "-"}
                     </em>
                   ))}
                 </span>
@@ -1128,6 +1193,17 @@ const CSS = `
 .row:last-child{border-bottom:0;}
 .row-bad{background:#FEF6F5;}
 .row-ok{background:#F4FAF8;}
+.row-unk{background:#F7F4FB;}
+.row-unk .qno{color:#6B4E9E;}
+.opt.unk{flex:0 0 52px;font-size:12px;color:#7B5EAF;border-style:dashed;}
+.opt.unk:hover{border-color:#7B5EAF;}
+.opt.unk.on{background:#7B5EAF;border-color:#7B5EAF;border-style:solid;color:#fff;}
+.bar-unk{font-size:12px;font-weight:700;color:#6B4E9E;background:#F0EAFA;padding:2px 8px;border-radius:20px;}
+.verdict.unk{background:#F0EAFA;color:#5B3F91;}
+.sub-unk{font-style:normal;color:#6B4E9E;font-size:11px;}
+.qs-unk{font-style:normal;color:#6B4E9E;font-weight:600;}
+.sq.unk{background:#EDE5F8;color:#5B3F91;}
+.st-unknown{background:#EDE5F8;color:#5B3F91;}
 .qno{flex:0 0 30px;font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;}
 .row-bad .qno{color:var(--bad);}
 .opts{display:flex;gap:6px;flex:1;}
