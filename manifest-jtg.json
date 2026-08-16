@@ -1,0 +1,16 @@
+{
+  "name": "증투권 모의고사 회독 관리",
+  "short_name": "증투권 회독",
+  "description": "증권투자권유대행인 모의고사 답안 입력, 자동 채점, 세부과목별 회독 통계",
+  "lang": "ko",
+  "start_url": "./jtg.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDF0F4",
+  "theme_color": "#9A5B0D",
+  "icons": [
+    { "src": "증투권아이콘_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "증투권아이콘_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
