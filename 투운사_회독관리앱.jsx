@@ -45,12 +45,14 @@ const fmtTime = (sec) => {
 };
 
 /* 붙여넣기 문자열 → 100문항 배열 파싱
-   허용: "1234123..." / "1.③ 2.① ..." / "1 2 3 4" / 줄바꿈·쉼표 혼용 */
+   허용: "1234912..." / "1.③ 2.모름 ..." / 줄바꿈·쉼표 혼용
+   9 또는 '모름' / 'U' 는 모름으로 읽음 */
 function parseBulk(raw) {
   if (!raw) return null;
   let t = raw.replace(/[①②③④]/g, (c) => ({ "①": "1", "②": "2", "③": "3", "④": "4" }[c]));
+  t = t.replace(/모름/g, "9").replace(/[Uu](?![a-zA-Z])/g, "9");
   // "12.3" 형태(문항.정답) 우선 처리
-  const paired = [...t.matchAll(/(\d{1,3})\s*[.:)\-]\s*([1-4])(?![0-9])/g)];
+  const paired = [...t.matchAll(/(\d{1,3})\s*[.:)]\s*([1-49])(?![0-9])/g)];
   if (paired.length >= 20) {
     const out = emptyArr();
     paired.forEach((m) => {
@@ -60,7 +62,7 @@ function parseBulk(raw) {
     });
     return out;
   }
-  const digits = t.replace(/[^1-4]/g, "");
+  const digits = t.replace(/[^1-49]/g, "");
   if (digits.length === 0) return null;
   const out = emptyArr();
   for (let i = 0; i < Math.min(100, digits.length); i++) out[i] = parseInt(digits[i], 10);
@@ -284,11 +286,20 @@ export default function App() {
       setNotice("숫자를 읽지 못했습니다. 1~4 사이 숫자로 입력해 주세요.");
       return;
     }
-    if (bulkTarget === "key") setKey(parsed);
-    else setDraft(parsed);
+    if (bulkTarget === "key") {
+      if (parsed.some((v) => v === UNKNOWN)) {
+        setNotice("정답표에는 모름을 넣을 수 없습니다. 1~4만 입력해 주세요.");
+        return;
+      }
+      setKey(parsed);
+    } else {
+      setDraft(parsed);
+    }
     setBulkOpen(false);
     setBulkText("");
-    setNotice(`${parsed.filter((v) => v > 0).length}개 문항을 채웠습니다.`);
+    const filled = parsed.filter((v) => v > 0).length;
+    const unk = parsed.filter((v) => v === UNKNOWN).length;
+    setNotice(`${filled}개 문항을 채웠습니다.${unk > 0 ? ` (모름 ${unk})` : ""}`);
   };
 
   const deleteAttempt = (idx) => {
@@ -492,14 +503,17 @@ export default function App() {
           {bulkOpen && (
             <div className="bulk">
               <p className="bulk-help">
-                번호만 이어서 붙여넣으세요. <code>3142…</code> 또는 <code>1.③ 2.① 3.②</code> 형식을 모두 읽습니다.
+                번호만 이어서 붙여넣으세요. <code>3142…</code> 또는 <code>1.3 2.1 3.모름</code> 형식을 모두 읽습니다.
+                {bulkTarget === "key"
+                  ? " 정답표에는 1~4만 넣을 수 있습니다."
+                  : " 모르는 문항은 9 또는 모름으로 적으면 모름으로 들어갑니다."}
               </p>
               <textarea
                 className="bulk-input"
                 rows={4}
                 value={bulkText}
                 onChange={(e) => setBulkText(e.target.value)}
-                placeholder="예: 3142231… 또는 1.3 2.1 3.4 …"
+                placeholder={bulkTarget === "key" ? "예: 3142231…" : "예: 3142931… 또는 1.3 2.모름 3.4 …"}
               />
               <div className="bulk-act">
                 <button className="btn ghost" onClick={() => setBulkOpen(false)}>취소</button>
@@ -1006,34 +1020,51 @@ function StatsView({ attempts, history, sectionStats, answerKey, examLabel, onDe
         </div>
       </Block>
 
-      <Block title={focus === "all" ? "반복 오답 상세" : `${STATUS_META[focus].label} 상세`} note="오답 횟수가 많은 순입니다.">
-        <div className="tbl">
-          <div className="tr th">
-            <span>문항</span><span>세부과목</span><span>회독 기록</span><span>상태</span>
-          </div>
+      <Block
+        title={focus === "all" ? "반복 오답 상세" : `${STATUS_META[focus].label} 상세`}
+        note="칸 안의 숫자는 그 회독에서 고른 번호입니다. U는 모름, 초록은 정답입니다."
+      >
+        <div className="dtl">
           {filtered
             .filter((h) => h.status !== "none" && (focus !== "all" || h.wrong > 0))
             .sort((a, b) => b.wrong - a.wrong || a.qno - b.qno)
             .slice(0, 60)
-            .map((h) => (
-              <div key={h.qno} className="tr">
-                <span className="td-q">{h.qno}</span>
-                <span className="td-s">{h.sec.name}</span>
-                <span className="td-seq">
-                  {h.seq.map((v, i) => (
-                    <em
-                      key={i}
-                      className={
-                        h.unkSeq?.[i] && v === false ? "sq unk" : v === true ? "sq ok" : v === false ? "sq bad" : "sq na"
-                      }
-                    >
-                      {h.unkSeq?.[i] && v === false ? "U" : v === true ? "O" : v === false ? "X" : "-"}
-                    </em>
-                  ))}
-                </span>
-                <span className={"td-st " + STATUS_META[h.status].cls}>{STATUS_META[h.status].label}</span>
-              </div>
-            ))}
+            .map((h) => {
+              const picks = attempts.map((a) => a.answers?.[h.qno - 1] ?? 0);
+              const wrongPicks = picks.filter((v, i) => v > 0 && v !== UNKNOWN && h.seq[i] === false);
+              const repeat = [1, 2, 3, 4]
+                .map((v) => ({ v, n: wrongPicks.filter((x) => x === v).length }))
+                .filter((x) => x.n >= 2);
+              return (
+                <div key={h.qno} className="dtl-row">
+                  <div className="dtl-top">
+                    <span className="dtl-q">{h.qno}번</span>
+                    <span className="dtl-sec">{h.sec.name}</span>
+                    <span className={"dtl-st " + STATUS_META[h.status].cls}>{STATUS_META[h.status].label}</span>
+                  </div>
+                  <div className="dtl-bot">
+                    <span className="dtl-key">정답 {answerKey?.[h.qno - 1] || "-"}</span>
+                    <span className="dtl-picks">
+                      {picks.map((v, i) => (
+                        <em
+                          key={i}
+                          className={
+                            "pk " +
+                            (v === UNKNOWN ? "unk" : h.seq[i] === true ? "ok" : h.seq[i] === false ? "bad" : "na")
+                          }
+                          title={`${i + 1}회독`}
+                        >
+                          {v === UNKNOWN ? "U" : v === 0 ? "-" : v}
+                        </em>
+                      ))}
+                    </span>
+                    {repeat.map((r) => (
+                      <span key={r.v} className="dtl-rep">{r.v}번 {r.n}회 반복</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </Block>
 
@@ -1278,6 +1309,25 @@ const CSS = `
 .exp-act{display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap;}
 .exp-msg{font-size:11.5px;color:var(--ok);font-weight:600;}
 .exp-area{width:100%;margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:11.5px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#FAFBFD;color:var(--ink);resize:vertical;white-space:pre;overflow-x:auto;}
+
+/* 문항 상세 */
+.dtl{display:flex;flex-direction:column;}
+.dtl-row{padding:9px 0;border-bottom:1px solid #F1F3F7;}
+.dtl-row:last-child{border-bottom:0;}
+.dtl-top{display:flex;align-items:center;gap:7px;}
+.dtl-q{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;flex:0 0 auto;}
+.dtl-sec{flex:1;min-width:0;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dtl-st{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;flex:0 0 auto;}
+.dtl-bot{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;}
+.dtl-key{font-size:11.5px;font-weight:700;color:var(--ok);background:#E1F2ED;padding:2px 8px;border-radius:20px;}
+.dtl-picks{display:flex;gap:3px;}
+.pk{font-style:normal;min-width:20px;height:20px;padding:0 3px;border-radius:4px;font-size:11px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;}
+.pk.ok{background:#DCEFE8;color:var(--ok);}
+.pk.bad{background:#F6D6D1;color:var(--bad);}
+.pk.unk{background:#EDE5F8;color:#5B3F91;}
+.pk.na{background:var(--paper);color:#B4BCC8;}
+.dtl-rep{font-size:10.5px;font-weight:700;color:#8E271C;background:#F9E3E0;padding:2px 7px;border-radius:20px;}
 
 .tbl{display:flex;flex-direction:column;font-size:12px;}
 .tr{display:grid;grid-template-columns:34px 1fr auto 64px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid #F1F3F7;}
