@@ -350,6 +350,18 @@ export default function App() {
       <header className="hd" ref={hdRef}>
         <div className="hd-row">
           <div className="brand">
+            <svg className="brand-ico" viewBox="0 0 64 64" aria-hidden="true">
+              <rect width="64" height="64" rx="14" fill="#22456F" />
+              <path d="M17 12h22l10 10v30a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" fill="#FBFCFE" />
+              <path d="M39 12l10 10h-8a2 2 0 0 1-2-2v-8z" fill="#CBD8E7" />
+              <rect x="21" y="20" width="16" height="4" rx="2" fill="#22456F" />
+              <circle cx="24" cy="34" r="4.4" fill="#22456F" />
+              <circle cx="37" cy="34" r="4.4" fill="none" stroke="#B9C6D6" strokeWidth="3" />
+              <circle cx="24" cy="46" r="4.4" fill="none" stroke="#B9C6D6" strokeWidth="3" />
+              <circle cx="37" cy="46" r="4.4" fill="#22456F" />
+              <circle cx="47" cy="46" r="13" fill="#0C7561" />
+              <path d="M41 46l4 4.4 8-9.4" fill="none" stroke="#fff" strokeWidth="4.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             <span className="brand-mark">투운사</span>
             <span className="brand-sub">모의고사 회독 관리</span>
           </div>
@@ -1016,7 +1028,8 @@ const CSS = `
 /* 헤더 */
 .hd{position:sticky;top:0;z-index:30;background:var(--panel);border-bottom:1px solid var(--line);}
 .hd-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 8px;}
-.brand{display:flex;align-items:baseline;gap:8px;min-width:0;}
+.brand{display:flex;align-items:center;gap:7px;min-width:0;}
+.brand-ico{width:26px;height:26px;flex:0 0 26px;border-radius:7px;}
 .brand-mark{font-weight:800;font-size:17px;letter-spacing:-.04em;color:var(--navy);}
 .brand-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hd-pick{display:flex;align-items:center;gap:6px;flex-shrink:0;}

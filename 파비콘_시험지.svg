@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="시험지 아이콘">
+  <rect width="64" height="64" rx="14" fill="#22456F"/>
+  <path d="M17 12h22l10 10v30a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" fill="#FBFCFE"/>
+  <path d="M39 12l10 10h-8a2 2 0 0 1-2-2v-8z" fill="#CBD8E7"/>
+  <rect x="21" y="20" width="16" height="4" rx="2" fill="#22456F"/>
+  <circle cx="24" cy="34" r="4.4" fill="#22456F"/>
+  <circle cx="37" cy="34" r="4.4" fill="none" stroke="#B9C6D6" stroke-width="3"/>
+  <circle cx="24" cy="46" r="4.4" fill="none" stroke="#B9C6D6" stroke-width="3"/>
+  <circle cx="37" cy="46" r="4.4" fill="#22456F"/>
+  <circle cx="47" cy="46" r="13" fill="#0C7561"/>
+  <path d="M41 46l4 4.4 8-9.4" fill="none" stroke="#fff" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
