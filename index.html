@@ -1028,8 +1028,8 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     )))), /* @__PURE__ */ React.createElement(
       Block,
       {
-        title: focus === "all" ? "\uBC18\uBCF5 \uC624\uB2F5 \uC0C1\uC138" : `${STATUS_META[focus].label} \uC0C1\uC138`,
-        note: "\uCE78 \uC548\uC758 \uC22B\uC790\uB294 \uADF8 \uD68C\uB3C5\uC5D0\uC11C \uACE0\uB978 \uBC88\uD638\uC785\uB2C8\uB2E4. U\uB294 \uBAA8\uB984, \uCD08\uB85D\uC740 \uC815\uB2F5\uC785\uB2C8\uB2E4."
+        title: focus === "all" ? `\uBC18\uBCF5 \uC624\uB2F5 \uC0C1\uC138 (${history.filter((h) => h.wrong > 0).length}\uBB38\uD56D)` : `${STATUS_META[focus].label} \uC0C1\uC138`,
+        note: focus === "all" ? "\uD55C \uBC88\uC774\uB77C\uB3C4 \uD2C0\uB9B0 \uBB38\uD56D\uB9CC \uBAA8\uC558\uC2B5\uB2C8\uB2E4. \uACC4\uC18D \uB9DE\uD78C \uBB38\uD56D\uC740 \uC704\uC5D0\uC11C '\uC548\uC815'\uC744 \uB20C\uB7EC \uBCF4\uC2ED\uC2DC\uC624. \uCE78 \uC548\uC758 \uC22B\uC790\uB294 \uADF8 \uD68C\uB3C5\uC5D0\uC11C \uACE0\uB978 \uBC88\uD638\uC774\uACE0, U\uB294 \uBAA8\uB984\uC785\uB2C8\uB2E4." : "\uCE78 \uC548\uC758 \uC22B\uC790\uB294 \uADF8 \uD68C\uB3C5\uC5D0\uC11C \uACE0\uB978 \uBC88\uD638\uC785\uB2C8\uB2E4. U\uB294 \uBAA8\uB984, \uCD08\uB85D\uC740 \uC815\uB2F5\uC785\uB2C8\uB2E4."
       },
       /* @__PURE__ */ React.createElement("div", { className: "dtl" }, filtered.filter((h) => h.status !== "none" && (focus !== "all" || h.wrong > 0)).sort((a, b) => b.wrong - a.wrong || a.qno - b.qno).slice(0, 60).map((h) => {
         const picks = attempts.map((a) => {
