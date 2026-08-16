@@ -353,7 +353,7 @@ export default function App() {
       if (ro) ro.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [tab, exams.length, manageOpen]);
+  }, [tab, exams.length, manageOpen, examId, loading, examsReady, unknownDraft > 0]);
 
   return (
     <div className="tws" style={{ "--hdh": `${hdH}px` }}>
@@ -412,6 +412,45 @@ export default function App() {
             통계 <span className="pill">{attempts.length}회독</span>
           </button>
         </nav>
+
+        {examsReady && !loading && examId && tab !== "stats" && (
+          <>
+            <div className="bar">
+              <div className="bar-left">
+                {showKey ? (
+                  <span className="bar-label">정답 입력 {keyCount}<span className="dim">/100</span></span>
+                ) : (
+                  <>
+                    <span className="bar-label">{round}회독 · {answeredCount}<span className="dim">/100</span></span>
+                    {unknownDraft > 0 && <span className="bar-unk">모름 {unknownDraft}</span>}
+                    <button
+                      className={"clock" + (running ? " ticking" : " paused")}
+                      onClick={() => setRunning((v) => !v)}
+                      aria-label={running ? "타이머 일시정지" : "타이머 시작"}
+                    >
+                      <span className="clock-ico" aria-hidden="true">{running ? "❚❚" : "▶"}</span>
+                      {fmtTime(elapsed)}
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="bar-right">
+                <button className="btn ghost" onClick={() => { setBulkTarget(showKey ? "key" : "draft"); setBulkOpen(true); }}>
+                  한번에 입력
+                </button>
+                {showKey ? (
+                  <button className="btn ghost" onClick={() => setKey(emptyArr())}>전체 지우기</button>
+                ) : (
+                  <>
+                    <button className="btn ghost" onClick={resetDraft}>새로 풀기</button>
+                    <button className="btn solid" onClick={doGrade}>채점하기</button>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="progress"><i style={{ width: `${(showKey ? keyCount : answeredCount)}%` }} /></div>
+          </>
+        )}
       </header>
 
       {notice && (
@@ -450,35 +489,6 @@ export default function App() {
         />
       ) : (
         <>
-          <div className="bar">
-            <div className="bar-left">
-              {showKey ? (
-                <span className="bar-label">정답 입력 {keyCount}<span className="dim">/100</span></span>
-              ) : (
-                <>
-                  <span className="bar-label">{round}회독 · {answeredCount}<span className="dim">/100</span></span>
-                  {unknownDraft > 0 && <span className="bar-unk">모름 {unknownDraft}</span>}
-                  <span className="clock">{fmtTime(elapsed)}</span>
-                </>
-              )}
-            </div>
-            <div className="bar-right">
-              <button className="btn ghost" onClick={() => { setBulkTarget(showKey ? "key" : "draft"); setBulkOpen(true); }}>
-                한번에 입력
-              </button>
-              {showKey ? (
-                <button className="btn ghost" onClick={() => setKey(emptyArr())}>전체 지우기</button>
-              ) : (
-                <>
-                  <button className="btn ghost" onClick={resetDraft}>새로 풀기</button>
-                  <button className="btn solid" onClick={doGrade}>채점하기</button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="progress"><i style={{ width: `${(showKey ? keyCount : answeredCount)}%` }} /></div>
-
           {bulkOpen && (
             <div className="bulk">
               <p className="bulk-help">
@@ -1093,9 +1103,9 @@ const CSS = `
 /* 헤더 */
 .hd{position:sticky;top:0;z-index:30;background:var(--panel);border-bottom:1px solid var(--line);}
 .hd-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 8px;}
-.brand{display:flex;align-items:center;gap:7px;min-width:0;}
+.brand{display:flex;align-items:center;gap:7px;min-width:0;flex-shrink:1;overflow:hidden;}
 .brand-ico{width:26px;height:26px;flex:0 0 26px;border-radius:7px;}
-.brand-mark{font-weight:800;font-size:17px;letter-spacing:-.04em;color:var(--navy);}
+.brand-mark{font-weight:800;font-size:17px;letter-spacing:-.04em;color:var(--navy);white-space:nowrap;}
 .brand-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hd-pick{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 .sel{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:7px 9px;font-size:13px;color:var(--ink);max-width:170px;}
@@ -1129,11 +1139,17 @@ const CSS = `
 .empty{padding:70px 24px;text-align:center;color:var(--muted);font-size:14px;line-height:1.9;}
 
 /* 상단 바 */
-.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px 10px;flex-wrap:wrap;}
-.bar-left{display:flex;align-items:baseline;gap:10px;}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px 9px;flex-wrap:wrap;}
+.bar-left{display:flex;align-items:center;gap:8px;}
 .bar-label{font-size:15px;font-weight:700;letter-spacing:-.02em;}
 .dim{color:var(--muted);font-weight:500;}
-.clock{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:var(--muted);}
+.clock{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:20px;padding:4px 11px;line-height:1;}
+.clock-ico{font-size:9px;line-height:1;}
+.clock.ticking{border-color:var(--navy);color:var(--navy);background:var(--navy-soft);}
+.clock.paused{border-color:#D9B96B;color:#8A6608;background:#FDF4DE;}
 .bar-right{display:flex;gap:6px;}
 .btn{border-radius:7px;font-size:13px;font-weight:600;padding:8px 12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);}
 .btn.solid{background:var(--navy);border-color:var(--navy);color:#fff;}
@@ -1141,7 +1157,7 @@ const CSS = `
 .btn.sm{padding:5px 10px;font-size:12px;}
 .btn.xs{padding:3px 8px;font-size:11px;}
 .btn:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
-.progress{height:3px;background:var(--line);margin:0 14px;border-radius:3px;overflow:hidden;}
+.progress{height:3px;background:var(--line);margin:0;border-radius:0;overflow:hidden;}
 .progress i{display:block;height:100%;background:var(--navy);transition:width .2s;}
 
 /* 일괄 입력 */
@@ -1280,7 +1296,7 @@ const CSS = `
   .subs{grid-template-columns:repeat(3,1fr);}
   .cards{grid-template-columns:repeat(4,1fr);}
   .sheet,.stats{max-width:860px;margin:0 auto;}
-  .hd-row,.tabs,.bar,.progress,.res,.bulk,.notice,.mgr{max-width:860px;margin-left:auto;margin-right:auto;}
+  .hd-row,.tabs,.bar,.res,.bulk,.notice,.mgr{max-width:860px;margin-left:auto;margin-right:auto;}
   .opt{height:34px;}
 }
 @media (prefers-reduced-motion:reduce){ .tws *{transition:none !important;} }

@@ -376,7 +376,7 @@ window.storage = {
         if (ro) ro.disconnect();
         window.removeEventListener("resize", update);
       };
-    }, [tab, exams.length, manageOpen]);
+    }, [tab, exams.length, manageOpen, examId, loading, examsReady, unknownDraft > 0]);
     return /* @__PURE__ */ React.createElement("div", { className: "tws", style: { "--hdh": `${hdH}px` } }, /* @__PURE__ */ React.createElement("style", null, CSS), /* @__PURE__ */ React.createElement("header", { className: "hd", ref: hdRef }, /* @__PURE__ */ React.createElement("div", { className: "hd-row" }, /* @__PURE__ */ React.createElement("div", { className: "brand" }, /* @__PURE__ */ React.createElement("svg", { className: "brand-ico", viewBox: "0 0 64 64", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("rect", { width: "64", height: "64", rx: "14", fill: "#22456F" }), /* @__PURE__ */ React.createElement("path", { d: "M17 12h22l10 10v30a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z", fill: "#FBFCFE" }), /* @__PURE__ */ React.createElement("path", { d: "M39 12l10 10h-8a2 2 0 0 1-2-2v-8z", fill: "#CBD8E7" }), /* @__PURE__ */ React.createElement("rect", { x: "21", y: "20", width: "16", height: "4", rx: "2", fill: "#22456F" }), /* @__PURE__ */ React.createElement("circle", { cx: "24", cy: "34", r: "4.4", fill: "#22456F" }), /* @__PURE__ */ React.createElement("circle", { cx: "37", cy: "34", r: "4.4", fill: "none", stroke: "#B9C6D6", strokeWidth: "3" }), /* @__PURE__ */ React.createElement("circle", { cx: "24", cy: "46", r: "4.4", fill: "none", stroke: "#B9C6D6", strokeWidth: "3" }), /* @__PURE__ */ React.createElement("circle", { cx: "37", cy: "46", r: "4.4", fill: "#22456F" }), /* @__PURE__ */ React.createElement("circle", { cx: "47", cy: "46", r: "13", fill: "#0C7561" }), /* @__PURE__ */ React.createElement("path", { d: "M41 46l4 4.4 8-9.4", fill: "none", stroke: "#fff", strokeWidth: "4.6", strokeLinecap: "round", strokeLinejoin: "round" })), /* @__PURE__ */ React.createElement("span", { className: "brand-mark" }, "\uD22C\uC6B4\uC0AC"), /* @__PURE__ */ React.createElement("span", { className: "brand-sub" }, "\uBAA8\uC758\uACE0\uC0AC \uD68C\uB3C5 \uAD00\uB9AC")), /* @__PURE__ */ React.createElement("div", { className: "hd-pick" }, /* @__PURE__ */ React.createElement(
       "select",
       {
@@ -393,7 +393,19 @@ window.storage = {
         onClick: () => setManageOpen((v) => !v)
       },
       "\uC2DC\uD5D8 \uAD00\uB9AC"
-    ))), /* @__PURE__ */ React.createElement("nav", { className: "tabs" }, /* @__PURE__ */ React.createElement("button", { className: tab === "solve" ? "tab on" : "tab", onClick: () => setTab("solve") }, "\uBB38\uC81C \uD480\uAE30"), /* @__PURE__ */ React.createElement("button", { className: tab === "key" ? "tab on" : "tab", onClick: () => setTab("key") }, "\uC815\uB2F5 \uB4F1\uB85D ", /* @__PURE__ */ React.createElement("span", { className: "pill" }, keyCount, "/100")), /* @__PURE__ */ React.createElement("button", { className: tab === "stats" ? "tab on" : "tab", onClick: () => setTab("stats") }, "\uD1B5\uACC4 ", /* @__PURE__ */ React.createElement("span", { className: "pill" }, attempts.length, "\uD68C\uB3C5")))), notice && /* @__PURE__ */ React.createElement("div", { className: "notice", onClick: () => setNotice("") }, notice, " ", /* @__PURE__ */ React.createElement("span", { className: "notice-x" }, "\uB2EB\uAE30")), manageOpen && /* @__PURE__ */ React.createElement(
+    ))), /* @__PURE__ */ React.createElement("nav", { className: "tabs" }, /* @__PURE__ */ React.createElement("button", { className: tab === "solve" ? "tab on" : "tab", onClick: () => setTab("solve") }, "\uBB38\uC81C \uD480\uAE30"), /* @__PURE__ */ React.createElement("button", { className: tab === "key" ? "tab on" : "tab", onClick: () => setTab("key") }, "\uC815\uB2F5 \uB4F1\uB85D ", /* @__PURE__ */ React.createElement("span", { className: "pill" }, keyCount, "/100")), /* @__PURE__ */ React.createElement("button", { className: tab === "stats" ? "tab on" : "tab", onClick: () => setTab("stats") }, "\uD1B5\uACC4 ", /* @__PURE__ */ React.createElement("span", { className: "pill" }, attempts.length, "\uD68C\uB3C5"))), examsReady && !loading && examId && tab !== "stats" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "bar" }, /* @__PURE__ */ React.createElement("div", { className: "bar-left" }, showKey ? /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, "\uC815\uB2F5 \uC785\uB825 ", keyCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, round, "\uD68C\uB3C5 \xB7 ", answeredCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")), unknownDraft > 0 && /* @__PURE__ */ React.createElement("span", { className: "bar-unk" }, "\uBAA8\uB984 ", unknownDraft), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        className: "clock" + (running ? " ticking" : " paused"),
+        onClick: () => setRunning((v) => !v),
+        "aria-label": running ? "\uD0C0\uC774\uBA38 \uC77C\uC2DC\uC815\uC9C0" : "\uD0C0\uC774\uBA38 \uC2DC\uC791"
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "clock-ico", "aria-hidden": "true" }, running ? "\u275A\u275A" : "\u25B6"),
+      fmtTime(elapsed)
+    ))), /* @__PURE__ */ React.createElement("div", { className: "bar-right" }, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => {
+      setBulkTarget(showKey ? "key" : "draft");
+      setBulkOpen(true);
+    } }, "\uD55C\uBC88\uC5D0 \uC785\uB825"), showKey ? /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => setKey(emptyArr()) }, "\uC804\uCCB4 \uC9C0\uC6B0\uAE30") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: resetDraft }, "\uC0C8\uB85C \uD480\uAE30"), /* @__PURE__ */ React.createElement("button", { className: "btn solid", onClick: doGrade }, "\uCC44\uC810\uD558\uAE30")))), /* @__PURE__ */ React.createElement("div", { className: "progress" }, /* @__PURE__ */ React.createElement("i", { style: { width: `${showKey ? keyCount : answeredCount}%` } })))), notice && /* @__PURE__ */ React.createElement("div", { className: "notice", onClick: () => setNotice("") }, notice, " ", /* @__PURE__ */ React.createElement("span", { className: "notice-x" }, "\uB2EB\uAE30")), manageOpen && /* @__PURE__ */ React.createElement(
       ExamManager,
       {
         exams,
@@ -417,10 +429,7 @@ window.storage = {
         examLabel: (_b = (_a = exams.find((e) => e.id === examId)) == null ? void 0 : _a.label) != null ? _b : "",
         onDelete: deleteAttempt
       }
-    ) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "bar" }, /* @__PURE__ */ React.createElement("div", { className: "bar-left" }, showKey ? /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, "\uC815\uB2F5 \uC785\uB825 ", keyCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "bar-label" }, round, "\uD68C\uB3C5 \xB7 ", answeredCount, /* @__PURE__ */ React.createElement("span", { className: "dim" }, "/100")), unknownDraft > 0 && /* @__PURE__ */ React.createElement("span", { className: "bar-unk" }, "\uBAA8\uB984 ", unknownDraft), /* @__PURE__ */ React.createElement("span", { className: "clock" }, fmtTime(elapsed)))), /* @__PURE__ */ React.createElement("div", { className: "bar-right" }, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => {
-      setBulkTarget(showKey ? "key" : "draft");
-      setBulkOpen(true);
-    } }, "\uD55C\uBC88\uC5D0 \uC785\uB825"), showKey ? /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => setKey(emptyArr()) }, "\uC804\uCCB4 \uC9C0\uC6B0\uAE30") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: resetDraft }, "\uC0C8\uB85C \uD480\uAE30"), /* @__PURE__ */ React.createElement("button", { className: "btn solid", onClick: doGrade }, "\uCC44\uC810\uD558\uAE30")))), /* @__PURE__ */ React.createElement("div", { className: "progress" }, /* @__PURE__ */ React.createElement("i", { style: { width: `${showKey ? keyCount : answeredCount}%` } })), bulkOpen && /* @__PURE__ */ React.createElement("div", { className: "bulk" }, /* @__PURE__ */ React.createElement("p", { className: "bulk-help" }, "\uBC88\uD638\uB9CC \uC774\uC5B4\uC11C \uBD99\uC5EC\uB123\uC73C\uC138\uC694. ", /* @__PURE__ */ React.createElement("code", null, "3142\u2026"), " \uB610\uB294 ", /* @__PURE__ */ React.createElement("code", null, "1.\u2462 2.\u2460 3.\u2461"), " \uD615\uC2DD\uC744 \uBAA8\uB450 \uC77D\uC2B5\uB2C8\uB2E4."), /* @__PURE__ */ React.createElement(
+    ) : /* @__PURE__ */ React.createElement(React.Fragment, null, bulkOpen && /* @__PURE__ */ React.createElement("div", { className: "bulk" }, /* @__PURE__ */ React.createElement("p", { className: "bulk-help" }, "\uBC88\uD638\uB9CC \uC774\uC5B4\uC11C \uBD99\uC5EC\uB123\uC73C\uC138\uC694. ", /* @__PURE__ */ React.createElement("code", null, "3142\u2026"), " \uB610\uB294 ", /* @__PURE__ */ React.createElement("code", null, "1.\u2462 2.\u2460 3.\u2461"), " \uD615\uC2DD\uC744 \uBAA8\uB450 \uC77D\uC2B5\uB2C8\uB2E4."), /* @__PURE__ */ React.createElement(
       "textarea",
       {
         className: "bulk-input",
@@ -735,9 +744,9 @@ window.storage = {
 /* \uD5E4\uB354 */
 .hd{position:sticky;top:0;z-index:30;background:var(--panel);border-bottom:1px solid var(--line);}
 .hd-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 8px;}
-.brand{display:flex;align-items:center;gap:7px;min-width:0;}
+.brand{display:flex;align-items:center;gap:7px;min-width:0;flex-shrink:1;overflow:hidden;}
 .brand-ico{width:26px;height:26px;flex:0 0 26px;border-radius:7px;}
-.brand-mark{font-weight:800;font-size:17px;letter-spacing:-.04em;color:var(--navy);}
+.brand-mark{font-weight:800;font-size:17px;letter-spacing:-.04em;color:var(--navy);white-space:nowrap;}
 .brand-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hd-pick{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 .sel{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:7px 9px;font-size:13px;color:var(--ink);max-width:170px;}
@@ -771,11 +780,17 @@ window.storage = {
 .empty{padding:70px 24px;text-align:center;color:var(--muted);font-size:14px;line-height:1.9;}
 
 /* \uC0C1\uB2E8 \uBC14 */
-.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px 10px;flex-wrap:wrap;}
-.bar-left{display:flex;align-items:baseline;gap:10px;}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px 9px;flex-wrap:wrap;}
+.bar-left{display:flex;align-items:center;gap:8px;}
 .bar-label{font-size:15px;font-weight:700;letter-spacing:-.02em;}
 .dim{color:var(--muted);font-weight:500;}
-.clock{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:var(--muted);}
+.clock{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:20px;padding:4px 11px;line-height:1;}
+.clock-ico{font-size:9px;line-height:1;}
+.clock.ticking{border-color:var(--navy);color:var(--navy);background:var(--navy-soft);}
+.clock.paused{border-color:#D9B96B;color:#8A6608;background:#FDF4DE;}
 .bar-right{display:flex;gap:6px;}
 .btn{border-radius:7px;font-size:13px;font-weight:600;padding:8px 12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);}
 .btn.solid{background:var(--navy);border-color:var(--navy);color:#fff;}
@@ -783,7 +798,7 @@ window.storage = {
 .btn.sm{padding:5px 10px;font-size:12px;}
 .btn.xs{padding:3px 8px;font-size:11px;}
 .btn:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
-.progress{height:3px;background:var(--line);margin:0 14px;border-radius:3px;overflow:hidden;}
+.progress{height:3px;background:var(--line);margin:0;border-radius:0;overflow:hidden;}
 .progress i{display:block;height:100%;background:var(--navy);transition:width .2s;}
 
 /* \uC77C\uAD04 \uC785\uB825 */
@@ -922,7 +937,7 @@ window.storage = {
   .subs{grid-template-columns:repeat(3,1fr);}
   .cards{grid-template-columns:repeat(4,1fr);}
   .sheet,.stats{max-width:860px;margin:0 auto;}
-  .hd-row,.tabs,.bar,.progress,.res,.bulk,.notice,.mgr{max-width:860px;margin-left:auto;margin-right:auto;}
+  .hd-row,.tabs,.bar,.res,.bulk,.notice,.mgr{max-width:860px;margin-left:auto;margin-right:auto;}
   .opt{height:34px;}
 }
 @media (prefers-reduced-motion:reduce){ .tws *{transition:none !important;} }
